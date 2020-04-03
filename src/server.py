@@ -1,107 +1,188 @@
 import socket
 import pickle
-import threading
 import select
+import sys
 
-# Задача основных значений
-PORT = 9090  # Порт соединения с сервером
-IP = socket.gethostname()  # Получение локального IP
-DATA_LENGTH = 10  # Задаёт максиальное кол-во байт для передачи
+from src.add.user import User
+
+# Main variables
+PORT = 9090
+IP = socket.gethostname()
 
 
-# Создание класса клиента
-class Client:
+class Room:
 
-    # Конструктор класса
-    def __init__(self, socket_, address):
-        # Инициализация параметров
-        self.socket = socket_  # Сокет клиента
-        self.address = address  # Адрес клиента
-        self.name = False  # Имя не задаём
+    # Create new room
+    def __init__(self, name):
 
-    # Задаёт имя пользователю
+        self.name = name
+        self.clients = {}
+
+        # Alerts
+        print(f"Room {self.name} has been created")
+
+    # New client in room
+    def new_connection(self, client):
+
+        self.clients[client.socket] = client
+
+        # Alerts
+        client.send_to_all(f"{client.name} join the room", self.clients)
+        print(f"{client.name} join the {self.name}")
+
+    # Remove client from room and global
+    def remove_connection(self, client):
+
+        # Alerts
+        print(f"{client.name} leave the room")
+
+        # Remove from room
+        self.clients.pop(client.socket)
+
+        # Remove global
+        socket_list.remove(client.socket)
+        clients.pop(client.socket)
+
+    def room_activity(self, client):
+
+        # Receive and get messages
+        data = client.get_data()
+
+        if not data:
+            self.remove_connection(client)
+        else:
+            client.send_to_all(f"{client.name} {client.address[1]} >>> {data}", self.clients)
+
+
+class Client(User):
+
+    # Create new client
+    def __init__(self):
+
+        self.socket, self.address = server_socket.accept()
+        self.name = False
+        self.room = False
+        self.is_send = False
+        self.socket.setblocking(False)
+
     def set_name(self):
-        self.name = self.get_data()
 
-    # Отправка данных клиенту
+        try:
+            if not self.is_send:  # Send once
+                self.send_data("Enter your name")
+                self.is_send = True
+
+            self.name = self.get_data()
+
+            if not self.name:  # If no input from client
+                return
+
+            self.is_send = False
+
+            # Alerts
+            print(f"User {self.address[1]} chose the name {self.name}")
+        except:
+            return False
+
+    def set_room(self):
+
+        try:
+            if not self.is_send:  # Send once
+                self.send_data("Select a room to join")
+                self.is_send = True
+
+            self.room = self.get_data()
+
+            if not self.room:  # If no input from client
+                return
+
+            if self.room not in rooms:  # Create new room
+                room = Room(self.room)
+                rooms.update({self.room: room})
+                room.new_connection(self)
+            else:  # Connect to existing one
+                room = rooms[self.room]
+                room.new_connection(self)
+                self.room = self.room
+            self.is_send = False
+        except:
+            return False
+
+    # Send data to client
     def send_data(self, data):
-        data = pickle.dumps(data)  # Первод данных в байты
-        data = bytes(f"{len(data):<{DATA_LENGTH}}", "utf-8") + data  # Добавление длинны данных
-        self.socket.send(data)  # Отпрвака данных серверу
 
-    # Отправляет сообщение всем пользователям, кроме отправителя
+        data = pickle.dumps(data)
+        data = bytes(f"{len(data):<{DATA_LENGTH}}", "utf-8") + data
+        self.socket.send(data)
+
+    # Send data to all users except our
     def send_to_all(self, data, to_clients):
-        for client_socket, client in to_clients.items():  # Перебор всех пользоваетелей
-            if client_socket != self.socket:  # Кроме нашего
+
+        for client_socket, client in to_clients.items():
+            if client_socket != self.socket:  # Except our
                 client.send_data(data)
 
-    # Получение данных от клиента
+    # Receive data from client
     def get_data(self):
-        # Если данные не были получены, то вернем False
+
         try:
-            len_message = int(self.socket.recv(DATA_LENGTH).decode("utf-8"))  # Получаем длину данных
-            data = self.socket.recv(len_message)  # Получаем данные заданной длинны
-            data = pickle.loads(data)  # Преобразуем данные из байт обратно в объект
+            len_message = int(self.socket.recv(DATA_LENGTH).decode("utf-8"))
+            data = self.socket.recv(len_message)
+            data = pickle.loads(data)
             return data
         except:
             return False
 
 
-# Получение данных
-def output_thread():
-    while True:
-        sockets, _, _ = select.select(socket_list, [], [])  # Прослушиваем все подключения
-        for i_socket in sockets:  # Пробегаемся по ним
-            if i_socket == server_socket:  # Если такого подключения еще нет
-                # Принимаем подключение
-                client_socket, client_address = server_socket.accept()  # Принимаем подключение
-                client = Client(client_socket, client_address)  # Создаем нового пользователя
+# Server setup
+server_socket = socket.socket()
+server_socket.bind((IP, PORT))
+server_socket.listen(5)
 
-                clients.update({client.socket: client})  # Добавляем в список пользоваетелей
-                socket_list.append(client.socket)  # Добавляем сокет пользователя
-                print(f"Новый пользователь присоединился {client.address[1]}")
-
-                if not client.name:  # Если его имя не задано
-
-                    client.send_data("Введите своё имя")
-                    client.set_name()  # Устанавливаем ему имя
-
-                    # Оповещаем о подключении
-                    print(f"Пользователь {client.address[1]} выбрал имя {client.name}")
-                    client.send_to_all(f"Пользователь {client.name} присоеденился", clients)
-                    continue
-
-            else:  # Если такое подключение уже существует
-                client = clients[i_socket]  # Получаем пользователя
-
-                # Получаем и отправляем сообщения
-                data = client.get_data()
-                if not data:
-                    socket_list.remove(client.socket)
-                    clients.pop(client.socket)
-                    print(f"Пользователь {client.name} вышел")
-                else:
-                    client.send_to_all(f"{client.name} {client.address[1]} >>> {data}", clients)
-
-
-# Ввод
-def input_thread():
-    while True:
-        data = input()
-        if data:
-            for client in clients.values():
-                client.send_data(f"server >>> {data}")
-
-
-# Настройка сервера
-server_socket = socket.socket()  # Получаем сокет сервера
-server_socket.bind((IP, PORT))  # Настраиваем подключение через IP, PORT
-server_socket.listen(5)  # Задаём максимальное число подключений
-
-# Для работы с клиентами
+# Main variables
 clients = dict()
-socket_list = [server_socket]
+socket_list = [server_socket, sys.stdin]
+rooms = dict()
 
-# Чтобы сервер не закрывался
-threading.Thread(target=output_thread).start()  # Получение данных
-threading.Thread(target=input_thread).start()  # Ввод
+# Logic
+while True:
+
+    server_socket.setblocking(False)  # Don't stop
+    sockets, _, _ = select.select(socket_list, [], [], 0)
+
+    for i_socket in sockets:
+
+        if i_socket == server_socket:
+            client = Client()
+
+            clients.update({client.socket: client})
+            socket_list.append(client.socket)
+
+            # Alerts
+            print(f"New user has successfully connected to the server. [{client.address[1]}]")
+            client.send_data("You are in!!")
+
+        elif i_socket == sys.stdin:
+            data = input()
+
+            if data:
+                for client in clients.values():
+                    client.send_data(f"server >>> {data}")
+
+        else:
+            client = clients[i_socket]
+
+            if client.name and client.room:
+                room = rooms[client.room]
+                room.room_activity(client)
+
+    # Set name and room to all connections
+    for client in clients.values():
+
+        if not client.name:
+            client.set_name()
+            continue
+
+        if not client.room:
+            client.set_room()
+            continue
