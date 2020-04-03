@@ -1,13 +1,12 @@
 import socket
 import pickle
-import threading
+import select
+import sys
 
 # Задача основных значений
 PORT = 9090  # Порт соединения с сервером
 IP = socket.gethostname()  # Получение локального IP
 DATA_LENGTH = 10  # Задаёт максиальное кол-во байт для передачи
-LOGGED_IN = False  # Ввёл пользователь имя или нет
-INPUT = True  # Можно ли пользователю отправлять сообщения или нет
 
 
 # Отправка данных серверу
@@ -29,37 +28,21 @@ def get_data():
         return False
 
 
-# Получение данных
-def output_thread():
-    global LOGGED_IN
-    global INPUT
-    while True:
-        data = get_data()
-        if not LOGGED_IN and not data:  # Елси до пользователя еще не дошла очередь
-            print("Подождите пока придет ваша очередь")
-            INPUT = False  # Запрещаем ему отправлять сообщения
-            while not data:  # До тех пор пока до нас не дойтёт очередь
-                data = get_data()
-        if data:
-            LOGGED_IN = True  # Пользователь вошёл
-            INPUT = True  # Разрешаем отправлять
-            print(data)
-
-
-# Ввод
-def input_thread():
-    global INPUT
-    while True:
-        data = input()
-        if data and INPUT:
-            send_data(data)
-
-
 # Подключение к серверу
 client_socket = socket.socket()  # Получаем сокет клиента
 client_socket.connect((IP, PORT))  # Подключаемся к серверу с IP, PORT
-client_socket.setblocking(False)  # Non-blocking
+client_socket.setblocking(False)  # Не тормозим
 
-# Поток для обработки ввода и получения сообщений
-threading.Thread(target=input_thread).start()  # Ввод
-threading.Thread(target=output_thread).start()  # Получение данных
+while True:
+
+    # Либо отпраляем, либо получаем
+    reads, _, _ = select.select([client_socket, sys.stdin], [], [])
+    for i in reads:
+        if i == client_socket:
+            data = get_data()
+            if data:
+                print(data)
+        else:
+            data = input()
+            if data:
+                send_data(data)
