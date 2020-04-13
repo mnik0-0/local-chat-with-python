@@ -2,7 +2,7 @@ import socket
 import select
 import sys
 
-from src.add.user import User
+from extra.user import User
 
 # Main variables
 PORT = 9090

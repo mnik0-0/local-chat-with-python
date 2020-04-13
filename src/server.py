@@ -3,7 +3,7 @@ import pickle
 import select
 import sys
 
-from src.add.user import User
+from extra.user import User
 
 # Main variables
 PORT = 9090
@@ -108,30 +108,12 @@ class Client(User):
         except:
             return False
 
-    # Send data to client
-    def send_data(self, data):
-
-        data = pickle.dumps(data)
-        data = bytes(f"{len(data):<{DATA_LENGTH}}", "utf-8") + data
-        self.socket.send(data)
-
     # Send data to all users except our
     def send_to_all(self, data, to_clients):
 
         for client_socket, client in to_clients.items():
             if client_socket != self.socket:  # Except our
                 client.send_data(data)
-
-    # Receive data from client
-    def get_data(self):
-
-        try:
-            len_message = int(self.socket.recv(DATA_LENGTH).decode("utf-8"))
-            data = self.socket.recv(len_message)
-            data = pickle.loads(data)
-            return data
-        except:
-            return False
 
 
 # Server setup
