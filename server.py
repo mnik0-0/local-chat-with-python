@@ -1,5 +1,4 @@
 import socket
-import pickle
 import select
 import sys
 
@@ -98,7 +97,7 @@ class Client(User):
 
             if self.room not in rooms:  # Create new room
                 room = Room(self.room)
-                rooms.update({self.room: room})
+                rooms[self.room] = room
                 room.new_connection(self)
             else:  # Connect to existing one
                 room = rooms[self.room]
@@ -122,9 +121,9 @@ server_socket.bind((IP, PORT))
 server_socket.listen(5)
 
 # Main variables
-clients = dict()
+clients = {}
 socket_list = [server_socket, sys.stdin]
-rooms = dict()
+rooms = {}
 
 # Logic
 while True:

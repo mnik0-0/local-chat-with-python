@@ -1,7 +1,4 @@
-import socket
 import pickle
-import select
-import sys
 
 DATA_LENGTH = 10
 
