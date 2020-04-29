@@ -2,19 +2,23 @@ import socket
 import select
 import sys
 
-from extra.user import User
+import src.User as User
 
 # Main variables
 PORT = 9090
 IP = socket.gethostname()
 
 
-class Client(User):
+class Client(User.User):
 
     def __init__(self):
-        self.socket = socket.socket()
-        self.socket.connect((IP, PORT))
-        self.socket.setblocking(False)
+        self._socket = socket.socket()
+        self._socket.connect((IP, PORT))
+        self._socket.setblocking(False)
+
+    @property
+    def socket(self):
+        return self._socket
 
 
 client = Client()
